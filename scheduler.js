@@ -43,3 +43,4 @@ console.log(`📬 Destinatario: ${process.env.RECIPIENT_EMAIL}`);
 console.log('⏳ Esperando próxima ejecución...\n');
 
 cron.schedule(schedule, runNewsletter, { timezone });
+runNewsletter();
