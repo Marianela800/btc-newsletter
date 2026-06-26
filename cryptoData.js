@@ -8,7 +8,7 @@ async function runActor(actorId, input) {
         const run = await client.actor(actorId).call(input);
         const { items } = await client.dataset(run.defaultDatasetId).listItems();
         console.log(`✅ ${actorId} → ${items.length} items`);
-        return items;
+        return items;h
    } catch (err) {
         console.warn(`⚠️  ${actorId} failed: ${err.message}`);
         return [];
@@ -19,7 +19,7 @@ async function fetchBitcoinData() {
    const [priceData, fearGreed, news] = await Promise.all([
         // CoinGecko price + market data
                                                               runActor('benthepythondev/crypto-intelligence', {
-                                                                     mode: 'coin',
+                                                                     mode: 'coin_details',
                                                                      coinIds: ['bitcoin'],
                                                                      vsCurrency: 'usd',
                                                                      days: 30,
