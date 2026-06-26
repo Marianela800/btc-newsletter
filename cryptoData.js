@@ -1,58 +1,68 @@
 const { ApifyClient } = require('apify-client');
+const https = require('https');
 
 const client = new ApifyClient({ token: process.env.APIFY_TOKEN });
 
 async function runActor(actorId, input) {
-     try {
-            console.log(`▶ Running ${actorId}...`);
-            const run = await client.actor(actorId).call(input, { waitSecs: 300 });
-            const { items } = await client.dataset(run.defaultDatasetId).listItems();
-            console.log(`✅ ${actorId} → ${items.length} items`);
-            return items;
-     } catch (err) {
-            console.warn(`⚠️  ${actorId} failed: ${err.message}`);
-            return [];
-     }
+       try {
+                console.log(`▶ Running ${actorId}...`);
+                const run = await client.actor(actorId).call(input, { waitSecs: 300 });
+                const { items } = await client.dataset(run.defaultDatasetId).listItems();
+                console.log(`✅ ${actorId} → ${items.length} items`);
+                return items;
+       } catch (err) {
+                console.warn(`⚠️  ${actorId} failed: ${err.message}`);
+                return [];
+       }
+}
+
+async function fetchCryptoPanicNews() {
+       return new Promise((resolve) => {
+                const url = 'https://cryptopanic.com/api/v1/posts/?auth_token=pub_free&currencies=BTC&kind=news&public=true';
+                https.get(url, (res) => {
+                           let data = '';
+                           res.on('data', (chunk) => { data += chunk; });
+                           res.on('end', () => {
+                                        try {
+                                                       const json = JSON.parse(data);
+                                                       const articles = (json.results || []).slice(0, 6).map((item) => ({
+                                                                        title: item.title,
+                                                                        url: item.url,
+                                                                        source: item.source ? item.source.title : 'CryptoPanic',
+                                                       }));
+                                                       console.log(`✅ CryptoPanic news → ${articles.length} items`);
+                                                       resolve(articles);
+                                        } catch (e) {
+                                                       console.warn(`⚠️  CryptoPanic parse error: ${e.message}`);
+                                                       resolve([]);
+                                        }
+                           });
+                }).on('error', (err) => {
+                           console.warn(`⚠️  CryptoPanic fetch error: ${err.message}`);
+                           resolve([]);
+                });
+       });
 }
 
 async function fetchBitcoinData() {
-     const [priceData, fearGreed, news] = await Promise.all([
-            // CoinGecko price + market data
-                                                                runActor('benthepythondev/crypto-intelligence', {
-                                                                         mode: 'coin_details',
-                                                                         coinIds: ['bitcoin'],
-                                                                         vsCurrency: 'usd',
-                                                                         days: 30,
-                                                                         includeDetails: true,
-                                                                }),
+       const [priceData, fearGreed, news] = await Promise.all([
+                // CoinGecko price + market data
+                                                                  runActor('benthepythondev/crypto-intelligence', {
+                                                                             mode: 'coin_details',
+                                                                             coinIds: ['bitcoin'],
+                                                                             vsCurrency: 'usd',
+                                                                             days: 30,
+                                                                             includeDetails: true,
+                                                                  }),
 
-            // Fear & Greed Index
-            runActor('gio21/fear-greed-scraper', { limit: 7 }),
+                // Fear & Greed Index
+                runActor('gio21/fear-greed-scraper', { limit: 7 }),
 
-            // BTC News via web scraper (native DOM, no jQuery)
-            runActor('apify/web-scraper', {
-                     startUrls: [{ url: 'https://cointelegraph.com/tags/bitcoin' }],
-                     pageFunction: async function pageFunction(context) {
-                                const articles = [];
-                                const els = document.querySelectorAll('article');
-                                const items = Array.from(els).slice(0, 6);
-                                for (const el of items) {
-                                             const titleEl = el.querySelector('h2, h3');
-                                             const linkEl = el.querySelector('a');
-                                             const title = titleEl ? titleEl.innerText.trim() : '';
-                                             const url = linkEl ? linkEl.href : '';
-                                             if (title) articles.push({ title, url, source: 'CoinTelegraph' });
-                                }
-                                return articles;
-                     },
-                     maxPagesPerCrawl: 1,
-            }),
-          ]);
+                // BTC News via CryptoPanic API (no scraping needed)
+                fetchCryptoPanicNews(),
+              ]);
 
-  // Flatten news (web-scraper returns nested arrays)
-  const flatNews = news.flat ? news.flat() : news;
-
-  return { priceData, signals: [], fearGreed, news: flatNews, aiAnalysis: [] };
+  return { priceData, signals: [], fearGreed, news, aiAnalysis: [] };
 }
 
 module.exports = { fetchBitcoinData };
