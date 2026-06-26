@@ -5,7 +5,7 @@ const client = new ApifyClient({ token: process.env.APIFY_TOKEN });
 async function runActor(actorId, input) {
    try {
         console.log(`▶ Running ${actorId}...`);
-        const run = await client.actor(actorId).call(input);
+        const run = await client.actor(actorId).call(input, { waitSecs: 300 });
         const { items } = await client.dataset(run.defaultDatasetId).listItems();
         console.log(`✅ ${actorId} → ${items.length} items`);
         return items;h
